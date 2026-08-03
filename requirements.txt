@@ -3,3 +3,5 @@ langchain_groq
 langgraph
 typing
 python-dotenv
+pydantic
+streamlit
