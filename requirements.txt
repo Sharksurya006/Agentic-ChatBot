@@ -5,3 +5,4 @@ typing
 python-dotenv
 pydantic
 streamlit
+langgraph-checkpoint-sqlite

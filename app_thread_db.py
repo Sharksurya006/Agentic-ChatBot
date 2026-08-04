@@ -1,8 +1,15 @@
-from agentic_chatbot_backend import chatbot
+from agentic_chatbot_db_backend import chatbot,get_all_threads
 from langchain_core.messages import HumanMessage, AIMessage
 import streamlit as st
 import uuid
 
+# import sys
+# import os
+
+# print("App")
+# print(sys.executable)
+# print(os.getcwd())
+# print(os.path.abspath("chatbot.db"))
 
 # This method generates the unique thread ID for the new conversation
 def generate_thread_id():
@@ -64,15 +71,12 @@ if "thread_id" not in st.session_state:
     
 # create condition executes when the application runs for the first time and there will be no chat threads then it will create that key
 if 'chat_threads' not in st.session_state:
-    st.session_state['chat_threads'] = []
+    st.session_state['chat_threads'] = get_all_threads()
 
 
 add_thread(st.session_state['thread_id'])
 
 # ======================== sidebar converation history ===================================
-
-
-curr_message = ""
 
 # Display the sidebar title
 
@@ -142,7 +146,7 @@ if user_input:
     CONFIG = {
           "configurable" : {"thread_id" : st.session_state['thread_id']}
 	}
-	
+    print(CONFIG)
     with st.chat_message('assistant'):
         ai_message = st.write_stream(
              message_chunk.content for message_chunk, metadata in chatbot.stream(
@@ -150,12 +154,12 @@ if user_input:
                  config = CONFIG,
                  stream_mode = 'messages'
              )
-
+			
 			 # Display only AI messages
              # This prevents tool and user messages from appearing
 			 if isinstance(message_chunk, AIMessage)
         )
-
+        print(get_all_threads())
     st.session_state['message_history'].append({'role':'assistant', 'content':ai_message})
 
 
