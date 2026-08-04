@@ -19,7 +19,16 @@ def generate_thread_id():
 
 # This methods adds the new thread or conversation in our conversation history
 def add_thread(thread_id):
-    
+
+    # for key,value in st.session_state['chat_threads']:
+    #     if key == thread_id:
+    #         return
+
+    # config = create_configuration(thread_id)
+    # heading = chatbot.invoke({'messages' : })
+    # st.session_state["chat_threads"].append({'thread_id':})
+      
+        
     # if the thread id is not present then only add
 	if thread_id not in st.session_state["chat_threads"]:
           st.session_state["chat_threads"].append(thread_id)
@@ -37,6 +46,10 @@ def reset_chat():
     # Add the new thread to the conversation list
     add_thread(st.session_state["thread_id"])
 
+
+def create_configuration(thread_id:str)->dict:
+    config = {'configurable' : {'thread_id' : thread_id}}
+    return config
 
 def get_messages(thread_id):
     # get the saved state for the selected thread
@@ -146,7 +159,7 @@ if user_input:
     CONFIG = {
           "configurable" : {"thread_id" : st.session_state['thread_id']}
 	}
-    print(CONFIG)
+    
     with st.chat_message('assistant'):
         ai_message = st.write_stream(
              message_chunk.content for message_chunk, metadata in chatbot.stream(
@@ -159,7 +172,7 @@ if user_input:
              # This prevents tool and user messages from appearing
 			 if isinstance(message_chunk, AIMessage)
         )
-        print(get_all_threads())
+        
     st.session_state['message_history'].append({'role':'assistant', 'content':ai_message})
 
 
