@@ -14,6 +14,13 @@ os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3)
 
+
+# def weather(city:str)->str:
+# 	"""This tool gives the live weather update"""
+# 	return f"The weather in the {city} is too sunny" 
+
+# llm = llm.bind_tools(tools = [weather])
+
 class ChatState(TypedDict):
 	messages: Annotated[list[BaseMessage], add_messages]
 
