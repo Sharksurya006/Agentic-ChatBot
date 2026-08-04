@@ -1,5 +1,6 @@
 langchain
 langchain_groq
+langchain-google-genai
 langgraph
 typing
 python-dotenv

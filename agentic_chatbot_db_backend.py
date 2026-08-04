@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from langgraph.graph.message import add_messages
 import os
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langchain.chat_models import init_chat_model
 import sqlite3
 
 load_dotenv()
@@ -13,8 +14,9 @@ load_dotenv()
 os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 
-llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3)
+llm = ChatGroq(model="moonshotai/kimi-k2-instruct", temperature=0.3)
 
+llm_google = init_chat_model("google_genai:gemini-2.5-flash-lite")
 
 import sys
 import os
