@@ -7,3 +7,4 @@ python-dotenv
 pydantic
 streamlit
 langgraph-checkpoint-sqlite
+langchain_tavily

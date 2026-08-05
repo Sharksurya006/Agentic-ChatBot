@@ -100,16 +100,12 @@ st.sidebar.title("My Conversations")
 if st.sidebar.button("New Chat"):
 
     # Find an existing empty conversation
-    empty_thread = None
+    curr_thread = st.session_state["chat_threads"][-1]
 
-    for thread_id in st.session_state["chat_threads"]:
-        if len(get_messages(thread_id)) == 0:
-            empty_thread = thread_id
-            break
 
-    if empty_thread:
+    if len(get_messages(curr_thread)) == 0:
         # Switch to the existing empty conversation
-        st.session_state["thread_id"] = empty_thread
+        st.session_state["thread_id"] = curr_thread
         st.session_state["message_history"] = []
     else:
         # No empty conversation exists, so create a new one
