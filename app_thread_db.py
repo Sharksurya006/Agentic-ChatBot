@@ -158,7 +158,6 @@ for message in st.session_state['message_history']:
 
 status_placeholder = st.empty()
 user_input = st.chat_input("Enter the message: ")
-
 if user_input:
 
     st.session_state["message_history"].append(
@@ -194,7 +193,23 @@ if user_input:
 
         def response_generator():
 
+            from langchain_core.messages import AIMessage, ToolMessage
+
+            # Initial state
             update_status("🧠 Thinking...")
+
+            tool_status = {
+                "search_tool": "🌐 Searching the web...",
+                "WeatherTool": "🌤 Fetching weather information...",
+                "calculator": "🧮 Calculating...",
+                "get_stock_price": "📈 Fetching stock price...",
+                "image_generation": "🎨 Generating image...",
+                "video_generation": "🎬 Generating video...",
+                "pdf_reader": "📄 Reading PDF...",
+                "filesystem": "📁 Accessing files...",
+                "email": "📧 Sending email...",
+                "calendar": "📅 Accessing calendar..."
+            }
 
             for message_chunk, metadata in chatbot.stream(
                 {"messages": [HumanMessage(content=user_input)]},
@@ -202,40 +217,37 @@ if user_input:
                 stream_mode="messages"
             ):
 
-                # Detect the current LangGraph node
-                if metadata and "langgraph_node" in metadata:
-
-                    node = metadata["langgraph_node"]
-
-                    if node == "chat_node":
-                        update_status("🧠 Thinking...")
-
-                    elif node == "tools":
-                        update_status("🛠 Using tools...")
-
-                    elif node == "search":
-                        update_status("🌐 Searching the web...")
-
-                    elif node == "weather":
-                        update_status("🌤 Fetching weather...")
-
-                    elif node == "stocks":
-                        update_status("📈 Fetching stock price...")
-
-                # Detect tool calls
-                if hasattr(message_chunk, "tool_calls") and message_chunk.tool_calls:
+                # Detect tool calls from the AI
+                if (
+                    isinstance(message_chunk, AIMessage)
+                    and hasattr(message_chunk, "tool_calls")
+                    and message_chunk.tool_calls
+                ):
 
                     tool_name = message_chunk.tool_calls[0]["name"]
 
-                    update_status(f"🛠 Calling `{tool_name}`...")
+                    update_status(
+                        tool_status.get(
+                            tool_name,
+                            f"🛠 Using {tool_name}..."
+                        )
+                    )
 
-                # Stream only AI response
-                if isinstance(message_chunk, AIMessage):
+                # Tool has completed execution
+                elif isinstance(message_chunk, ToolMessage):
+
+                    update_status("📄 Processing tool results...")
+
+                # Final AI response
+                elif isinstance(message_chunk, AIMessage):
 
                     if message_chunk.content:
+
+                        update_status("✍️ Generating response...")
+
                         yield message_chunk.content
 
-            # Remove the status after the response is complete
+            # Remove status after completion
             status_placeholder.empty()
 
         ai_message = st.write_stream(response_generator())
