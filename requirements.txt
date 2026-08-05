@@ -8,3 +8,4 @@ pydantic
 streamlit
 langgraph-checkpoint-sqlite
 langchain_tavily
+langchain-openrouter

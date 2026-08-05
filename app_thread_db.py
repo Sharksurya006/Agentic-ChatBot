@@ -156,37 +156,90 @@ for message in st.session_state['message_history']:
 #     with st.chat_message(message['role']):
 #         st.text(message['content'])
 
+status_placeholder = st.empty()
 user_input = st.chat_input("Enter the message: ")
 
 if user_input:
-    
-        
-    st.session_state['message_history'].append({'role':'user', 'content':user_input})
+
+    st.session_state["message_history"].append(
+        {"role": "user", "content": user_input}
+    )
+
     with st.chat_message("user"):
         st.text(user_input)
 
-	# pass the current thread ID to LangGraph
-    # Langgraph uses this ID to save and retrieve conversation memory
-    
+    # Pass the current thread ID to LangGraph
     CONFIG = {
-          "configurable" : {"thread_id" : st.session_state['thread_id']}
-	}
-    
-    with st.chat_message('assistant'):
-        ai_message = st.write_stream(
-             message_chunk.content for message_chunk, metadata in chatbot.stream(
-                 {'messages' : [HumanMessage(content=user_input)]},
-                 config = CONFIG,
-                 stream_mode = 'messages'
-             )
-			
-			 # Display only AI messages
-             # This prevents tool and user messages from appearing
-			 if isinstance(message_chunk, AIMessage)
-        )
-        
-    st.session_state['message_history'].append({'role':'assistant', 'content':ai_message})
+        "configurable": {
+            "thread_id": st.session_state["thread_id"]
+        }
+    }
 
+    with st.chat_message("assistant"):
 
+        def update_status(message):
+            status_placeholder.markdown(
+                f"""
+                <div style="
+                    font-size:0.82rem;
+                    color:#8c8c8c;
+                    padding-top:4px;
+                    padding-bottom:4px;
+                ">
+                    {message}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
+        def response_generator():
 
+            update_status("🧠 Thinking...")
+
+            for message_chunk, metadata in chatbot.stream(
+                {"messages": [HumanMessage(content=user_input)]},
+                config=CONFIG,
+                stream_mode="messages"
+            ):
+
+                # Detect the current LangGraph node
+                if metadata and "langgraph_node" in metadata:
+
+                    node = metadata["langgraph_node"]
+
+                    if node == "chat_node":
+                        update_status("🧠 Thinking...")
+
+                    elif node == "tools":
+                        update_status("🛠 Using tools...")
+
+                    elif node == "search":
+                        update_status("🌐 Searching the web...")
+
+                    elif node == "weather":
+                        update_status("🌤 Fetching weather...")
+
+                    elif node == "stocks":
+                        update_status("📈 Fetching stock price...")
+
+                # Detect tool calls
+                if hasattr(message_chunk, "tool_calls") and message_chunk.tool_calls:
+
+                    tool_name = message_chunk.tool_calls[0]["name"]
+
+                    update_status(f"🛠 Calling `{tool_name}`...")
+
+                # Stream only AI response
+                if isinstance(message_chunk, AIMessage):
+
+                    if message_chunk.content:
+                        yield message_chunk.content
+
+            # Remove the status after the response is complete
+            status_placeholder.empty()
+
+        ai_message = st.write_stream(response_generator())
+
+    st.session_state["message_history"].append(
+        {"role": "assistant", "content": ai_message}
+    )

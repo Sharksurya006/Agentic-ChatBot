@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from typing import TypedDict,Annotated
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
 from langgraph.graph.message import add_messages
@@ -25,10 +25,15 @@ load_dotenv()
 os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 os.environ["TAVILY_API_KEY"] = os.getenv("TAVILY_API_KEY")
+os.environ["DEEPSEEK_API_KEY"] = os.getenv("DEEPSEEK_API_KEY")
 
-llm = ChatGroq(model="qwen/qwen3-32b", temperature=0.3)
+llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3)
 
 llm_google = init_chat_model("google_genai:gemini-2.0-flash")
+
+# llm_deepseek = init_chat_model(
+#     "openrouter:deepseek/deepseek-r1"
+# )
 
 @tool
 def get_weather_update(city:str):
@@ -67,12 +72,22 @@ llm_with_tools = llm.bind_tools(tools)
 
 def chat_node(state: ChatState):
 
-	messages = state['messages']
+    messages = state["messages"]
 
-	response = llm_with_tools.invoke(messages)
+    try:
+        response = llm_with_tools.invoke(messages)
+        return {"messages": [response]}
 
-	return {'messages' : [response]}
+    except Exception as e:
+        print(f"LLM Error: {e}")
 
+        return {
+            "messages": [
+                AIMessage(
+                    content="Sorry can't resolve the Query, LLM model is experiencing issues as of now. Please try again later."
+                )
+            ]
+        }
 
 
 tool_node = ToolNode(tools)
