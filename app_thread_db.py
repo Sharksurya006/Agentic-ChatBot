@@ -5,13 +5,6 @@ import streamlit as st
 import uuid
 import os
 import tempfile
-# import sys
-# import os
-
-# print("App")
-# print(sys.executable)
-# print(os.getcwd())
-# print(os.path.abspath("chatbot.db"))
 
 # This method generates the unique thread ID for the new conversation
 def generate_thread_id():
@@ -110,7 +103,7 @@ if "last_uploaded_file" not in st.session_state:
 
 uploaded_file = st.sidebar.file_uploader(
     label="Upload Document",
-    type=["pdf", "docx", "txt", "md"],
+    type=["pdf"],
     help="Upload a document to add it to the chatbot's knowledge base."
 )
 
@@ -180,19 +173,13 @@ st.sidebar.divider()
 
 st.sidebar.subheader("💬 Recent Conversations")
 
-#==========================================================================================
-	# if len(get_messages(st.session_state['thread_id'])) > 0:
-    #       reset_chat()
-    #       st.rerun()
-
-
 
 # Display all conversation threads in reverseOrder
 # This shows the newest conversation first
 for thread_id in st.session_state["chat_threads"][::-1]:
-  
 
     if st.sidebar.button(str(thread_id), key=thread_id):
+
         st.session_state["thread_id"] = thread_id
 
         messages = load_conversation(thread_id)
@@ -200,15 +187,41 @@ for thread_id in st.session_state["chat_threads"][::-1]:
         temp_messages = []
 
         for message in messages:
+
             if isinstance(message, HumanMessage):
+
                 temp_messages.append(
-                    {"role": "user", "content": message.content}
+                    {
+                        "role": "user",
+                        "content": message.content
+                    }
                 )
+
             elif isinstance(message, AIMessage):
-                 if not message.content:
+
+                if not message.content:
                     continue
-                 temp_messages.append(
-                    {"role": "assistant", "content": message.content}
+
+                content = message.content
+
+                # If the content is a JSON string, try to decode it
+                if isinstance(content, str):
+                    import json
+
+                    try:
+                        parsed = json.loads(content)
+
+                        if isinstance(parsed, (dict, list)):
+                            content = parsed
+
+                    except Exception:
+                        pass
+
+                temp_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": content
+                    }
                 )
 
         st.session_state["message_history"] = temp_messages
@@ -216,10 +229,40 @@ for thread_id in st.session_state["chat_threads"][::-1]:
 
 
 # ====================================================================================
-for message in st.session_state['message_history']:
-    with st.chat_message(message['role']):
-        st.text(message['content'])
+for message in st.session_state["message_history"]:
 
+    with st.chat_message(message["role"]):
+
+        content = message["content"]
+
+        # Normal text message
+        if isinstance(content, str):
+            st.markdown(content)
+
+        # Mixed content (text + images)
+        elif isinstance(content, list):
+
+            for item in content:
+
+                if isinstance(item, str):
+                    st.markdown(item)
+
+                elif isinstance(item, dict):
+
+                    if item.get("type") == "image":
+                        st.image(item["path"])
+
+                    elif item.get("type") == "text":
+                        st.markdown(item["text"])
+
+        # Single image
+        elif isinstance(content, dict):
+
+            if content.get("type") == "image":
+                st.image(content["path"])
+
+            elif content.get("type") == "text":
+                st.markdown(content["text"])
 
 
 # for message in st.session_state['chat_threads']:
@@ -242,7 +285,6 @@ if user_input:
     with st.chat_message("user"):
         st.text(user_input)
 
-    # Pass the current thread ID to LangGraph
     CONFIG = {
         "configurable": {
             "thread_id": st.session_state["thread_id"]
@@ -269,8 +311,8 @@ if user_input:
         def response_generator():
 
             from langchain_core.messages import AIMessage, ToolMessage
+            import json
 
-            # Initial state
             update_status("🧠 Thinking...")
 
             tool_status = {
@@ -292,7 +334,7 @@ if user_input:
                 stream_mode="messages"
             ):
 
-                # Detect tool calls from the AI
+                # Tool call started
                 if (
                     isinstance(message_chunk, AIMessage)
                     and hasattr(message_chunk, "tool_calls")
@@ -308,12 +350,28 @@ if user_input:
                         )
                     )
 
-                # Tool has completed execution
+                # Tool finished
                 elif isinstance(message_chunk, ToolMessage):
 
                     update_status("📄 Processing tool results...")
 
-                # Final AI response
+                    tool_output = message_chunk.content
+
+                    # If tool returned JSON string
+                    if isinstance(tool_output, str):
+                        try:
+                            tool_output = json.loads(tool_output)
+                        except:
+                            pass
+
+                    # Image tool
+                    if (
+                        isinstance(tool_output, dict)
+                        and tool_output.get("type") == "image"
+                    ):
+                        yield tool_output
+
+                # Final LLM response
                 elif isinstance(message_chunk, AIMessage):
 
                     if message_chunk.content:
@@ -322,36 +380,69 @@ if user_input:
 
                         content = message_chunk.content
 
-                        # String content (Groq, OpenAI, etc.)
                         if isinstance(content, str):
                             yield content
 
-                        # List of content blocks (Gemini)
                         elif isinstance(content, list):
+
                             for block in content:
 
-                                # LangChain content block as dict
                                 if isinstance(block, dict):
+
                                     if block.get("type") == "text":
                                         yield block.get("text", "")
 
-                                # LangChain content block as object
                                 elif hasattr(block, "text"):
                                     yield block.text
 
-                                # Fallback
                                 elif isinstance(block, str):
                                     yield block
 
-            # Remove status after completion
             status_placeholder.empty()
 
-        ai_message = st.write_stream(response_generator())
+        # ----------------------------
+        # Custom rendering
+        # ----------------------------
 
-    st.session_state["message_history"].append(
-        {"role": "assistant", "content": ai_message}
-    )
+        assistant_text = ""
+        assistant_content = []
 
-#==========================================================================
+        text_placeholder = st.empty()
 
+        for chunk in response_generator():
 
+            # Stream text
+            if isinstance(chunk, str):
+
+                assistant_text += chunk
+
+                text_placeholder.markdown(assistant_text)
+
+                assistant_content.append(chunk)
+
+            # Render image
+            elif isinstance(chunk, dict):
+
+                if chunk.get("type") == "image":
+
+                    st.image(chunk["path"])
+
+                    assistant_content.append(chunk)
+
+        # Store chat history
+        if assistant_content:
+
+            if len(assistant_content) == 1 and isinstance(assistant_content[0], str):
+
+                stored_content = assistant_text
+
+            else:
+
+                stored_content = assistant_content
+
+            st.session_state["message_history"].append(
+                {
+                    "role": "assistant",
+                    "content": stored_content
+                }
+            )

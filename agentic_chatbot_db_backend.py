@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, START, END
-from typing import TypedDict,Annotated
+from typing import TypedDict,Annotated,List,Optional
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
@@ -9,9 +9,11 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_tavily import TavilySearch
 from langchain_core.tools import tool
 
-import requests
-import math
+from email_tool import Send_email
 
+import requests
+from urllib.parse import quote
+import uuid
 from prompt import system_prompt
 
 import os
@@ -30,7 +32,7 @@ os.environ["DEEPSEEK_API_KEY"] = os.getenv("DEEPSEEK_API_KEY")
 
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3)
 
-llm_google = init_chat_model("google_genai:gemini-3.6-flash")
+llm_google = init_chat_model("google_genai:gemini-2.5-flash-lite")
 
 # llm_deepseek = init_chat_model(
 #     "openrouter:deepseek/deepseek-r1"
@@ -41,6 +43,30 @@ def get_weather_update(city:str):
       """This method returns the live weather update in a specific city"""
       weather = WeatherTool()
       return weather.get_weather(city)
+
+
+@tool
+def generate_image(prompt: str) -> str:
+    """
+    Generates an image from the given prompt using Pollinations AI.
+    Returns the path to the generated image.
+    """
+
+    filename = f"generated_{uuid.uuid4().hex[:8]}.png"
+    url = f"https://image.pollinations.ai/prompt/{quote(prompt)}"
+
+    try:
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+
+        with open(filename, "wb") as f:
+            f.write(response.content)
+
+        return os.path.abspath(filename)
+
+    except requests.RequestException as e:
+        return f"Image generation failed: {e}"
+
 
 
 @tool
@@ -64,22 +90,95 @@ def web_search_tool(query:str) -> str:
 
 @tool
 def RAG_tool(query:str) -> str:
-      """Retrieve relevant information from the PDF document
-       
-       Use this tool when the user asks factual or conceptual questions
-       that may be answered using the stored PDF documents
+       """
+    Search the uploaded PDF knowledge base.
 
-       args:
-         query: the question or search query used to retrieve PDF content.
+    ALWAYS use this tool whenever the user asks about:
+
+    - uploaded PDFs
+    - resumes
+    - CVs
+    - documents
+    - research papers
+    - contracts
+    - reports
+    - "this file"
+    - "the uploaded document"
+
+    Never answer from your own knowledge if the answer may exist in the uploaded document.
+
+    Args:
+        query: User question.
+
+    Returns:
+        Relevant extracted text from the uploaded PDF.
     """
-      return rag_tool(query)
+       return rag_tool(query)
+
+
+@tool
+def send_email(
+    recipients: List[str],
+    subject: str,
+    body: str,
+    cc: Optional[List[str]] = None,
+    bcc: Optional[List[str]] = None,
+    attachments: Optional[List[str]] = None,
+    html: bool = False,
+    reply_to: Optional[str] = None,
+    priority: str = "normal"
+) -> str:
+    """
+    Sends an email using Gmail.
+
+    Parameters
+    ----------
+    recipients : List[str]
+        Recipient email addresses.
+
+    subject : str
+        Email subject.
+
+    body : str
+        Email content.
+
+    cc : List[str], optional
+        CC recipients.
+
+    bcc : List[str], optional
+        BCC recipients.
+
+    attachments : List[str], optional
+        List of file paths.
+
+    html : bool
+        Whether body contains HTML.
+
+    reply_to : str
+        Reply-To address.
+
+    priority : str
+        low, normal, high
+    """
+
+    return Send_email(
+    recipients,
+    subject,
+    body,
+    cc,
+    bcc,
+    attachments,
+    html,
+    reply_to,
+    priority
+    ) 
 
 class ChatState(TypedDict):
 	messages: Annotated[list[BaseMessage], add_messages]
 
 
 
-tools = [get_weather_update,calculator_tool,stock_update,web_search_tool,RAG_tool]
+tools = [get_weather_update,calculator_tool,stock_update,web_search_tool,RAG_tool,send_email,generate_image]
 
 llm_with_tools = llm_google.bind_tools(tools)
 
