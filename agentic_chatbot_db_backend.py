@@ -32,7 +32,7 @@ os.environ["DEEPSEEK_API_KEY"] = os.getenv("DEEPSEEK_API_KEY")
 
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3)
 
-llm_google = init_chat_model("google_genai:gemini-2.5-flash-lite")
+llm_google = init_chat_model("google_genai:gemini-3.5-flash")
 
 # llm_deepseek = init_chat_model(
 #     "openrouter:deepseek/deepseek-r1"
@@ -62,7 +62,10 @@ def generate_image(prompt: str) -> str:
         with open(filename, "wb") as f:
             f.write(response.content)
 
-        return os.path.abspath(filename)
+        return {
+          "type": "image",
+          "path": os.path.abspath(filename)
+        }
 
     except requests.RequestException as e:
         return f"Image generation failed: {e}"
