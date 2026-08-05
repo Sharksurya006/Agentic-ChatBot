@@ -1,8 +1,10 @@
 from agentic_chatbot_db_backend import chatbot,get_all_threads
+from rag_tool import ingest_rag_document
 from langchain_core.messages import HumanMessage, AIMessage
 import streamlit as st
 import uuid
-
+import os
+import tempfile
 # import sys
 # import os
 
@@ -87,32 +89,98 @@ if 'chat_threads' not in st.session_state:
     st.session_state['chat_threads'] = get_all_threads()
 
 
+if "last_uploaded_file" not in st.session_state:
+    st.session_state["last_uploaded_file"] = None
+
 add_thread(st.session_state['thread_id'])
 
-# ======================== sidebar converation history ===================================
+# ========================= Sidebar =========================
 
-# Display the sidebar title
+# Sidebar title
+st.sidebar.title("🤖 Agentic ChatBot")
 
-st.sidebar.title("My Conversations")
+# ==========================================================
+# Document Upload
+# ==========================================================
 
-#create a button for starting a new conversation
+st.sidebar.subheader("📄 Knowledge Base")
 
-if st.sidebar.button("New Chat"):
+if "last_uploaded_file" not in st.session_state:
+    st.session_state["last_uploaded_file"] = None
+
+uploaded_file = st.sidebar.file_uploader(
+    label="Upload Document",
+    type=["pdf", "docx", "txt", "md"],
+    help="Upload a document to add it to the chatbot's knowledge base."
+)
+
+if (
+    uploaded_file is not None
+    and (
+        st.session_state["last_uploaded_file"] is None
+        or uploaded_file.name != st.session_state["last_uploaded_file"]
+    )
+):
+
+    import os
+    import tempfile
+
+    temp_path = None
+
+    try:
+
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=os.path.splitext(uploaded_file.name)[1]
+        ) as temp_file:
+
+            temp_file.write(uploaded_file.getbuffer())
+            temp_path = temp_file.name
+
+        with st.spinner("📚 Adding document to knowledge base..."):
+            ingest_rag_document(temp_path)
+
+        st.session_state["last_uploaded_file"] = uploaded_file.name
+
+        st.sidebar.success("✅ Document uploaded successfully!")
+
+    except Exception as e:
+
+        st.sidebar.error(f"❌ {e}")
+
+    finally:
+
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+
+st.sidebar.divider()
+
+# ==========================================================
+# New Chat
+# ==========================================================
+
+if st.sidebar.button("➕ New Chat", use_container_width=True):
 
     # Find an existing empty conversation
     curr_thread = st.session_state["chat_threads"][-1]
 
-
     if len(get_messages(curr_thread)) == 0:
-        # Switch to the existing empty conversation
         st.session_state["thread_id"] = curr_thread
         st.session_state["message_history"] = []
     else:
-        # No empty conversation exists, so create a new one
         reset_chat()
 
     st.rerun()
-    
+
+st.sidebar.divider()
+
+# ==========================================================
+# Conversation History
+# ==========================================================
+
+st.sidebar.subheader("💬 Recent Conversations")
+
+#==========================================================================================
 	# if len(get_messages(st.session_state['thread_id'])) > 0:
     #       reset_chat()
     #       st.rerun()
@@ -137,7 +205,9 @@ for thread_id in st.session_state["chat_threads"][::-1]:
                     {"role": "user", "content": message.content}
                 )
             elif isinstance(message, AIMessage):
-                temp_messages.append(
+                 if not message.content:
+                    continue
+                 temp_messages.append(
                     {"role": "assistant", "content": message.content}
                 )
 
@@ -156,6 +226,11 @@ for message in st.session_state['message_history']:
 #     with st.chat_message(message['role']):
 #         st.text(message['content'])
 
+#==================================================
+
+# CHAT INPUT
+
+# ===============================================
 status_placeholder = st.empty()
 user_input = st.chat_input("Enter the message: ")
 if user_input:
@@ -245,7 +320,28 @@ if user_input:
 
                         update_status("✍️ Generating response...")
 
-                        yield message_chunk.content
+                        content = message_chunk.content
+
+                        # String content (Groq, OpenAI, etc.)
+                        if isinstance(content, str):
+                            yield content
+
+                        # List of content blocks (Gemini)
+                        elif isinstance(content, list):
+                            for block in content:
+
+                                # LangChain content block as dict
+                                if isinstance(block, dict):
+                                    if block.get("type") == "text":
+                                        yield block.get("text", "")
+
+                                # LangChain content block as object
+                                elif hasattr(block, "text"):
+                                    yield block.text
+
+                                # Fallback
+                                elif isinstance(block, str):
+                                    yield block
 
             # Remove status after completion
             status_placeholder.empty()
@@ -255,3 +351,7 @@ if user_input:
     st.session_state["message_history"].append(
         {"role": "assistant", "content": ai_message}
     )
+
+#==========================================================================
+
+

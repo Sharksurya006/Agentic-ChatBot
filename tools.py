@@ -2,6 +2,7 @@
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_tavily import TavilySearch
 from langchain_core.tools import tool
+from rag_tool import retrieval_rag_document
 
 import requests
 import math
@@ -82,6 +83,30 @@ def calculator(expression: str)-> str:
             return str(result)
       except Exception as e:
             return f"Calculation error: {str(e)}"
+
+
+
+def rag_tool(query: str) -> str:
+    retriever =  retrieval_rag_document()
+    documents = retriever.invoke(query)
+
+    if not documents:
+        return "No relevant information was found in the given PDF."
+
+    formatted_documents = []
+
+    for index, document in enumerate(documents, start=1):
+        source = document.metadata.get("source", "Unknown source")
+        page = document.metadata.get("page", "Unknown page")
+
+        formatted_documents.append(
+            f"Document {index}\n"
+            f"Source: {source}\n"
+            f"Page: {page}\n"
+            f"Content:\n{document.page_content}\n"
+        )
+
+    return "\n\n".join(formatted_documents)
 
 
 

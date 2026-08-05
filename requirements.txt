@@ -9,3 +9,7 @@ streamlit
 langgraph-checkpoint-sqlite
 langchain_tavily
 langchain-openrouter
+langchain-text-splitters
+langchain-community
+faiss-cpu
+pypdf

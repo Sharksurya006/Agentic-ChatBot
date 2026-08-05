@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from typing import TypedDict,Annotated
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
 from langgraph.graph.message import add_messages
@@ -12,13 +12,14 @@ from langchain_core.tools import tool
 import requests
 import math
 
+from prompt import system_prompt
+
 import os
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain.chat_models import init_chat_model
 import sqlite3
 
-
-from tools import WeatherTool,calculator,get_stock_price,search_tool
+from tools import WeatherTool,calculator,get_stock_price,search_tool, rag_tool
 
 load_dotenv()
 
@@ -29,7 +30,7 @@ os.environ["DEEPSEEK_API_KEY"] = os.getenv("DEEPSEEK_API_KEY")
 
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3)
 
-llm_google = init_chat_model("google_genai:gemini-2.0-flash")
+llm_google = init_chat_model("google_genai:gemini-3.6-flash")
 
 # llm_deepseek = init_chat_model(
 #     "openrouter:deepseek/deepseek-r1"
@@ -61,18 +62,32 @@ def web_search_tool(query:str) -> str:
       return search_tool.invoke(query)
 
 
+@tool
+def RAG_tool(query:str) -> str:
+      """Retrieve relevant information from the PDF document
+       
+       Use this tool when the user asks factual or conceptual questions
+       that may be answered using the stored PDF documents
+
+       args:
+         query: the question or search query used to retrieve PDF content.
+    """
+      return rag_tool(query)
+
 class ChatState(TypedDict):
 	messages: Annotated[list[BaseMessage], add_messages]
 
 
 
-tools = [get_weather_update,calculator_tool,stock_update,web_search_tool]
+tools = [get_weather_update,calculator_tool,stock_update,web_search_tool,RAG_tool]
 
-llm_with_tools = llm.bind_tools(tools)
+llm_with_tools = llm_google.bind_tools(tools)
 
 def chat_node(state: ChatState):
 
-    messages = state["messages"]
+    system_message = SystemMessage(content = system_prompt)
+
+    messages = [system_message,*state["messages"]]
 
     try:
         response = llm_with_tools.invoke(messages)
