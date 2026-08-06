@@ -9,11 +9,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # build-essential supports packages that require compilation
-# libgompl is commonly required by faiss-cpu
+# libgomp1 is commonly required by faiss-cpu
 
 RUN apt-get update && apt-get install -y --no-install-recommends \	
 	build-essential\
-	libgompl \
+	libgomp1 \
 	&& rm -rf /var/lib/apt/lists/*
 
 #copy requirements first for docker build caching
